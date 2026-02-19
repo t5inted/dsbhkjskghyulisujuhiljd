@@ -1,8 +1,7 @@
--- [[ /PLAYGIRLS UNIFIED HUB V4.9.6 - FINAL RESTORATION ]] --
--- FIXED: Triggerbot (mouse1press/release sequence)
--- FIXED: ESP Skeletons & Health Bars (Restored update loops)
--- FIXED: Signal Logic (Green ONLY when actively tracking/clicking)
--- FIXED: Mouselock (Integrated sticky logic with ignore-onScreen)
+-- [[ /PLAYGIRLS UNIFIED HUB V4.9.8 - FINAL ]] --
+-- FIXED: Whitelist Scroll (Properly parented to ScrollingFrame with Auto-Canvas size)
+-- FIXED: FPS Unlocker (Traced Logic)
+-- FIXED: Signal Logic (RED = Off, YELLOW = Idle, GREEN = Active)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12,11 +11,12 @@ local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
 
---// Silent Aim Globals
+--// Globals
 getgenv().SilentAim = false
 getgenv().ShowFOV = false
 getgenv().TargetKnocked = false
 getgenv().FOVRadius = 100
+local Whitelist = {}
 
 -- [[ UI SETUP ]] --
 local MainGui = Instance.new("ScreenGui", game.CoreGui)
@@ -182,6 +182,21 @@ SubTitle.Font = Enum.Font.GothamBold
 SubTitle.TextSize = 10
 SubTitle.BackgroundTransparency = 1
 
+-- [[ SCROLLABLE SIDEBAR BUTTONS ]] --
+local SidebarScroll = Instance.new("ScrollingFrame", Sidebar)
+SidebarScroll.Size = UDim2.new(1, 0, 1, -110)
+SidebarScroll.Position = UDim2.new(0, 0, 0, 60)
+SidebarScroll.BackgroundTransparency = 1
+SidebarScroll.ScrollBarThickness = 2
+SidebarScroll.CanvasSize = UDim2.new(0, 0, 0, 400) 
+local SidebarLayout = Instance.new("UIListLayout", SidebarScroll)
+SidebarLayout.Padding = UDim.new(0, 5)
+SidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+SidebarLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    SidebarScroll.CanvasSize = UDim2.new(0, 0, 0, SidebarLayout.AbsoluteContentSize.Y + 20)
+end)
+
 local Credits = Instance.new("TextLabel", Sidebar)
 Credits.Size = UDim2.new(1, -10, 0, 40)
 Credits.Position = UDim2.new(0, 5, 1, -45)
@@ -205,6 +220,7 @@ local function CreatePage(name)
     Page.Visible = false
     Page.ScrollBarThickness = 2
     Page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    Page.ScrollBarImageColor3 = Color3.fromRGB(255, 20, 147)
     local Layout = Instance.new("UIListLayout", Page)
     Layout.Padding = UDim.new(0, 5)
     
@@ -218,6 +234,7 @@ end
 
 local CombatPage = CreatePage("Combat")
 local SilentPage = CreatePage("Silent")
+local WhitelistPage = CreatePage("Whitelist")
 local VisualPage = CreatePage("Visuals")
 local ESPPage = CreatePage("ESP")
 local TeleportPage = CreatePage("Teleport")
@@ -231,10 +248,9 @@ local function ShowPage(name)
     Pages[name].Visible = true
 end
 
-local function CreateTabBtn(name, offset)
-    local btn = Instance.new("TextButton", Sidebar)
+local function CreateTabBtn(name)
+    local btn = Instance.new("TextButton", SidebarScroll)
     btn.Size = UDim2.new(0.9, 0, 0, 32)
-    btn.Position = UDim2.new(0.05, 0, 0, offset)
     btn.Text = name
     btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     btn.TextColor3 = Color3.new(1, 1, 1)
@@ -244,15 +260,16 @@ local function CreateTabBtn(name, offset)
     btn.MouseButton1Click:Connect(function() ShowPage(name) end)
 end
 
-CreateTabBtn("Combat", 60)
-CreateTabBtn("Silent", 95)
-CreateTabBtn("Visuals", 130)
-CreateTabBtn("ESP", 165)
-CreateTabBtn("Teleport", 200)
-CreateTabBtn("Speed", 235) 
-CreateTabBtn("FPS", 270)
-CreateTabBtn("Avatar", 305)
-CreateTabBtn("Settings", 340)
+CreateTabBtn("Combat")
+CreateTabBtn("Silent")
+CreateTabBtn("Whitelist")
+CreateTabBtn("Visuals")
+CreateTabBtn("ESP")
+CreateTabBtn("Teleport")
+CreateTabBtn("Speed") 
+CreateTabBtn("FPS")
+CreateTabBtn("Avatar")
+CreateTabBtn("Settings")
 ShowPage("Combat")
 
 -- [[ COMPONENTS ]] --
@@ -444,6 +461,41 @@ local function ApplyHeadless()
     end
 end
 
+-- [[ WHITELIST SYSTEM (FIXED SCROLL) ]] --
+local function UpdateWhitelistUI()
+    WhitelistPage:ClearAllChildren()
+    local Layout = Instance.new("UIListLayout", WhitelistPage)
+    Layout.Padding = UDim.new(0, 5)
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    
+    CreateHeader(WhitelistPage, "PLAYER LIST")
+    
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local btn = Instance.new("TextButton", WhitelistPage)
+            btn.Size = UDim2.new(0.95, 0, 0, 35)
+            btn.BackgroundColor3 = Whitelist[plr.UserId] and Color3.fromRGB(255, 20, 147) or Color3.fromRGB(25, 25, 25)
+            btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            btn.TextColor3 = Color3.new(1,1,1)
+            btn.Font = Enum.Font.Gotham
+            btn.TextSize = 11
+            Instance.new("UICorner", btn)
+            
+            btn.MouseButton1Click:Connect(function()
+                Whitelist[plr.UserId] = not Whitelist[plr.UserId]
+                btn.BackgroundColor3 = Whitelist[plr.UserId] and Color3.fromRGB(255, 20, 147) or Color3.fromRGB(25, 25, 25)
+            end)
+        end
+    end
+    
+    -- Force Canvas Update
+    WhitelistPage.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 20)
+end
+
+Players.PlayerAdded:Connect(UpdateWhitelistUI)
+Players.PlayerRemoving:Connect(UpdateWhitelistUI)
+UpdateWhitelistUI()
+
 -- [[ PAGE POPULATION ]] --
 CreateHeader(CombatPage, "TRIGGERBOT")
 CreateToggle(CombatPage, "Triggerbot", "Trigger", false, function(v) TriggerSettings.MasterEnabled = v end)
@@ -586,7 +638,7 @@ local function GetClosestToCursor(radius)
     local Target = nil
     local ShortestDistance = radius or getgenv().FOVRadius
     for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+        if v ~= LocalPlayer and not Whitelist[v.UserId] and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
             local hum = v.Character:FindFirstChild("Humanoid")
             local bodyEffects = v.Character:FindFirstChild("BodyEffects")
             local isKO = bodyEffects and bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value
@@ -625,7 +677,7 @@ local function getMagnetTarget()
     local mousePos = UserInputService:GetMouseLocation()
 
     for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(MagnetSettings.TargetPart) then
+        if v ~= LocalPlayer and not Whitelist[v.UserId] and v.Character and v.Character:FindFirstChild(MagnetSettings.TargetPart) then
             local pos, _ = Camera:WorldToViewportPoint(v.Character[MagnetSettings.TargetPart].Position)
             local distance = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
             if distance < shortestDistance then
@@ -721,76 +773,103 @@ end)
 local loopFrameCount = 0
 local lastUpdate = tick()
 
+-- High-performance FPS Loop (Traced Logic Implementation)
+task.spawn(function()
+    while task.wait(0.1) do
+        if FPSSettings.MasterEnabled then
+            setfpscap(FPSSettings.TargetFPS)
+        end
+    end
+end)
+
 RunService.RenderStepped:Connect(function()
     loopFrameCount = loopFrameCount + 1
     if tick() - lastUpdate >= 1 then 
         fpsShow.Text = "Current FPS: " .. loopFrameCount
-        if FPSSettings.MasterEnabled then setfpscap(FPSSettings.TargetFPS) end
         loopFrameCount = 0
         lastUpdate = tick()
     end
 
     if AvatarSettings.HeadlessActive then ApplyHeadless() end
 
-    local function setSignal(signal, master, running)
+    local function setSignal(signal, master, active)
         if signal then
-            if not master then signal.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            elseif master and not running then signal.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
-            else signal.BackgroundColor3 = Color3.fromRGB(0, 255, 0) end
+            if not master then 
+                signal.BackgroundColor3 = Color3.fromRGB(255, 0, 0) 
+            elseif master and not active then 
+                signal.BackgroundColor3 = Color3.fromRGB(255, 255, 0) 
+            else 
+                signal.BackgroundColor3 = Color3.fromRGB(0, 255, 0) 
+            end
         end
     end
 
-    -- T5INTED FLAMELOCK ENGINE
-    local flameRunning = false
+    -- FLAMELOCK LOGIC
+    local flameActive = false
     if FlameConfig.MasterLock and FlameConfig.LockActive and flameTargetPart and flameTargetPart.Parent then
-        local targetPos = flameTargetPart.Position + (flameTargetPart.Velocity * FlameConfig.Prediction)
-        local offset = (Camera.CFrame.RightVector * FlameConfig.LeftOffset) + Vector3.new(0, FlameConfig.UpOffset, 0)
-        local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos + offset)
-        if onScreen then
-            flameRunning = true
-            local mousePos = UserInputService:GetMouseLocation()
-            mousemoverel((screenPos.X - mousePos.X) * FlameConfig.Smoothness, (screenPos.Y - mousePos.Y) * FlameConfig.Smoothness)
+        local targetPlr = Players:GetPlayerFromCharacter(flameTargetPart.Parent)
+        if targetPlr and not Whitelist[targetPlr.UserId] then
+            local targetPos = flameTargetPart.Position + (flameTargetPart.Velocity * FlameConfig.Prediction)
+            local offset = (Camera.CFrame.RightVector * FlameConfig.LeftOffset) + Vector3.new(0, FlameConfig.UpOffset, 0)
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos + offset)
+            if onScreen then
+                flameActive = true
+                local mousePos = UserInputService:GetMouseLocation()
+                mousemoverel((screenPos.X - mousePos.X) * FlameConfig.Smoothness, (screenPos.Y - mousePos.Y) * FlameConfig.Smoothness)
+            end
+        else
+            flameTargetPart = nil
         end
     end
-    setSignal(statusBars.Flame, FlameConfig.MasterLock, flameRunning)
+    setSignal(statusBars.Flame, FlameConfig.MasterLock, flameActive)
 
-    -- NEW STICKY MAGNET ENGINE
-    local magRunning = false
+    -- MAGNET LOGIC
+    local magActive = false
     if MagnetSettings.MasterEnabled and MagnetSettings.Enabled then
         if magTarget and magTarget.Parent then
-            magRunning = true
-            local targetPos, _ = Camera:WorldToViewportPoint(magTarget.Position)
-            local mouseLocation = UserInputService:GetMouseLocation()
-            local targetVec = Vector2.new(targetPos.X, targetPos.Y)
-            local delta = (targetVec - mouseLocation) * MagnetSettings.MagnetStrength
-            
-            if mousemoverel then
-                mousemoverel(delta.X, delta.Y)
+            local targetPlr = Players:GetPlayerFromCharacter(magTarget.Parent)
+            if targetPlr and not Whitelist[targetPlr.UserId] then
+                magActive = true
+                local targetPos, _ = Camera:WorldToViewportPoint(magTarget.Position)
+                local mouseLocation = UserInputService:GetMouseLocation()
+                local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                local delta = (targetVec - mouseLocation) * MagnetSettings.MagnetStrength
+                if mousemoverel then mousemoverel(delta.X, delta.Y) end
+            else
+                MagnetSettings.Enabled = false
+                magTarget = nil
             end
         else
             MagnetSettings.Enabled = false
             magTarget = nil
         end
     end
-    setSignal(statusBars.Magnet, MagnetSettings.MasterEnabled, magRunning)
+    setSignal(statusBars.Magnet, MagnetSettings.MasterEnabled, magActive)
 
-    -- TRIGGERBOT ENGINE FIXED
-    local trigRunning = false
+    -- TRIGGERBOT LOGIC
+    local trigActive = false
     if TriggerSettings.MasterEnabled and TriggerSettings.Active and not isBlacklisted() then
         if Mouse.Target and Mouse.Target.Parent:FindFirstChild("Humanoid") then
-            trigRunning = true
-            mouse1press()
-            task.wait(TriggerSettings.ClickDelay)
-            mouse1release()
+            local targetPlr = Players:GetPlayerFromCharacter(Mouse.Target.Parent)
+            if not targetPlr or (targetPlr and not Whitelist[targetPlr.UserId]) then
+                trigActive = true
+                mouse1press()
+                task.wait(TriggerSettings.ClickDelay)
+                mouse1release()
+            end
         end
     end
-    setSignal(statusBars.Trigger, TriggerSettings.MasterEnabled, trigRunning)
+    setSignal(statusBars.Trigger, TriggerSettings.MasterEnabled, trigActive)
 
     -- SPEED & FOV
+    local currentSpeedActive = false
     if FlameConfig.MasterSpeed and FlameConfig.SpeedActive and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = FlameConfig.WalkSpeedValue
+        currentSpeedActive = true
     end
-    setSignal(statusBars.Speed, FlameConfig.MasterSpeed, FlameConfig.SpeedActive)
+    setSignal(statusBars.Speed, FlameConfig.MasterSpeed, currentSpeedActive)
+
+    setSignal(statusBars.FPS, FPSSettings.MasterEnabled, FPSSettings.MasterEnabled)
 
     FOVCircle.Visible = getgenv().ShowFOV
     FOVCircle.Radius = getgenv().FOVRadius
@@ -822,7 +901,6 @@ RunService.RenderStepped:Connect(function()
                         obj.HealthBg.Visible = true
                         obj.HealthBg.From = Vector2.new(top.X - 5, top.Y + size.Y)
                         obj.HealthBg.To = Vector2.new(top.X - 5, top.Y)
-                        
                         obj.Health.Visible = true
                         obj.Health.From = Vector2.new(top.X - 5, top.Y + size.Y)
                         obj.Health.To = Vector2.new(top.X - 5, top.Y + size.Y - (size.Y * (hum.Health/hum.MaxHealth)))
@@ -843,16 +921,13 @@ RunService.RenderStepped:Connect(function()
                     else for _,b in pairs(obj.Bones) do b.Visible = false end end
 
                     if ESPSettings.Name then
-                        obj.Name.Text = plr.Name .. (ESPSettings.Distance and " [" .. math.floor(dist) .. "m]" or "")
+                        obj.Name.Text = (Whitelist[plr.UserId] and "[WHITELISTED] " or "") .. plr.Name .. (ESPSettings.Distance and " [" .. math.floor(dist) .. "m]" or "")
                         obj.Name.Position = Vector2.new(pos.X, top.Y - 15)
                         obj.Name.Color = ESPSettings.NameColor
                         obj.Name.Visible = true
                     else obj.Name.Visible = false end
                 else
-                    obj.Box.Visible = false
-                    obj.Name.Visible = false
-                    obj.Health.Visible = false
-                    obj.HealthBg.Visible = false
+                    obj.Box.Visible = false; obj.Name.Visible = false; obj.Health.Visible = false; obj.HealthBg.Visible = false
                     for _,b in pairs(obj.Bones) do b.Visible = false end
                 end
             end
